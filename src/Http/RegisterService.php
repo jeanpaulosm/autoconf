@@ -109,4 +109,36 @@ class RegisterService
             return 'Erro ao tentar registrar atendimento: ' . $e->getMessage();
         }
     }
+
+    public function finalizeAttendance($id, $sucessoInsucesso, $vendedorId, $motivoId)
+    {
+        try {
+            // Primeiro GET para capturar o token
+            $response = $this->client->get("https://app.autoconf.com.br/lead/atendimento/{$id}/edit");
+            $html = (string) $response->getBody();
+            $crawler = new Crawler($html);
+            $token = $crawler->filter('input[name="_token"]')->attr('value');
+
+            // Segundo POST para finalizar o atendimento
+            $response = $this->client->post("https://app.autoconf.com.br/lead/atendimento/{$id}/update", [
+                'form_params' => [
+                    '_method' => 'PUT',
+                    '_token' => $token,
+                    'sucesso_insucesso' => $sucessoInsucesso,
+                    'vendedor_id' => $vendedorId,
+                    'motivo_id' => $motivoId
+                ]
+            ]);
+
+            $redirectHistory = $response->getHeader('X-Guzzle-Redirect-History');
+            $currentUrl = end($redirectHistory);
+            if ($currentUrl === 'https://app.autoconf.com.br/lead/atendimento') {
+                return 'Atendimento finalizado com sucesso';
+            } else {
+                return 'Houve algum erro ao finalizar o atendimento';
+            }
+        } catch (RequestException $e) {
+            return 'Erro ao tentar finalizar atendimento: ' . $e->getMessage();
+        }
+    }
 }
