@@ -12,12 +12,14 @@ class RegisterService
     protected $client;
     protected $cookieJar;
 
-    public function __construct()
+    public function __construct(Client $client = null)
     {
         $this->cookieJar = new CookieJar();
-        $this->client = new Client([
+        $this->client = $client ?: new Client([
             'cookies' => $this->cookieJar,
-            'allow_redirects' => true,
+            'allow_redirects' => [
+                'track_redirects' => true
+            ],
             'headers' => [
                 'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
             ]
@@ -43,15 +45,14 @@ class RegisterService
             ]);
 
             // Verificar se o login foi bem-sucedido
-            if ($response->getStatusCode() == 200) {
-                $currentUrl = $response->getEffectiveUrl();
-                if ($currentUrl === 'https://app.autoconf.com.br/dashboard') {
-                    return 'Sucesso no processo de autenticação';
-                } else {
-                    $html = (string) $response->getBody();
-                    if (preg_match("/alert\('danger',\s*'([^']+)'\s*,\s*'topRight'\);/", $html, $matches)) {
-                        return 'Erro: ' . $matches[1];
-                    }
+            $redirectHistory = $response->getHeader('X-Guzzle-Redirect-History');
+            $currentUrl = end($redirectHistory);
+            if ($currentUrl === 'https://app.autoconf.com.br/dashboard') {
+                return 'Sucesso no processo de autenticação';
+            } else {
+                $html = (string) $response->getBody();
+                if (preg_match("/alert\('danger',\s*'([^']+)'\s*,\s*'topRight'\);/", $html, $matches)) {
+                    return 'Erro: ' . $matches[1];
                 }
             }
         } catch (RequestException $e) {
@@ -94,7 +95,8 @@ class RegisterService
                 ]
             ]);
 
-            $currentUrl = $response->getEffectiveUrl();
+            $redirectHistory = $response->getHeader('X-Guzzle-Redirect-History');
+            $currentUrl = end($redirectHistory);
             if (preg_match("/https:\/\/app\.autoconf\.com\.br\/lead\/atendimento\/(\d+)\/edit/", $currentUrl, $matches)) {
                 return [
                     'status' => 'sucesso',
